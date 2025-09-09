@@ -1,0 +1,42 @@
+trigger:
+  branches:
+    include:
+      - main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  IMAGE_NAME: '$(DOCKERHUB_USER)/flask-demo'   # replace or set as pipeline variable
+  IMAGE_TAG: '$(Build.BuildId)'
+
+steps:
+- task: UsePythonVersion@0
+  inputs:
+    versionSpec: '3.10'
+
+- script: |
+    python -m pip install --upgrade pip
+    pip install -r requirements.txt
+  displayName: 'Install Python dependencies'
+
+- script: |
+    pytest -q
+  displayName: 'Run unit tests'
+
+- script: |
+    docker build -t $(IMAGE_NAME):$(IMAGE_TAG) .
+  displayName: 'Build Docker image'
+
+- script: |
+    echo $(DOCKERHUB_PASS) | docker login --username $(DOCKERHUB_USER) --password-stdin
+    docker push $(IMAGE_NAME):$(IMAGE_TAG)
+  displayName: 'Login to Docker Hub & push image'
+
+- script: |
+    # Quick smoke test: run the pushed image on agent to validate image integrity
+    docker run -d --name smoke -p 8080:5000 $(IMAGE_NAME):$(IMAGE_TAG)
+    sleep 3
+    curl --fail http://localhost:8080/ || (docker logs smoke && exit 1)
+    docker stop smoke
+  displayName: 'Smoke test image on agent'
