@@ -1,4 +1,10 @@
 trigger:
+- main
+
+variables:
+  - group: dockerhub-secrets
+
+trigger:
   branches:
     include:
       - main
